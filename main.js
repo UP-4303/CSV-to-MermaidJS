@@ -10,37 +10,64 @@ convertButton.addEventListener('click', () => {
 	output.value = convert(input.value)
 })
 
-function convert(inputText){
-	let csvHeaders = inputText.split(/[",]\n/)[0].split(',')
-	let csvRows = inputText.split(/[",]\n/).splice(1)
+function parseCsv(inputText){
+	let csvRaw = inputText.split(/[",]\n/)
+	let csvHeaders = csvRaw[0].split(/,/)
+	let csvRows = csvRaw.splice(1)
+	let fieldRegex = /(|"[^"]*")(?:,)/
+
 	let csvContent = []
 	for(i in csvHeaders)[
-		csvHeaders[i] = csvHeaders[i].replaceAll('"', '')
+		csvHeaders[i] = csvHeaders[i].replace(/"/g, '')
 	]
+	
 	for(i in csvRows){
-		csvRows[i] = csvRows[i].replaceAll('"', '')
-		csvContent.push(csvRows[i].split(','))
-	}
+		csvRows[i] = csvRows[i].replace(/[\[\]]/g, '')
+		csvContent.push([])
+		let row = csvRows[i]
+		while ((found = fieldRegex.exec(row)) !== null){
 
-	jsonResult = []
-	for(i in csvContent){
-		jsonResult.push({})
-		for(j in csvHeaders){
-			jsonResult[i][csvHeaders[j]] = csvContent[i][j]
+			let field = found[0].replace(/"/g, '')
+			field = field.substring(0,field.length-1) // We don't want the trailing comma
+			csvContent[csvContent.length-1].push(field)
+			row = row.substring(found[0].length)
 		}
 	}
 
-	console.log(jsonResult)
+	let csv = csvContent
+	csv.splice(0,0,csvHeaders)
+
+	return csv
+}
+
+function csvToJson(csv){
+	let csvHeaders = csv[0]
+	let csvContent = csv.splice(1)
+	let json = []
+	for(i in csvContent){
+		json.push({})
+		for(j in csvHeaders){
+			json[i][csvHeaders[j]] = csvContent[i][j]
+		}
+	}
+	return json
+}
+
+function convert(inputText){
+	let csv = parseCsv(inputText)
+	console.log(csv)
+	let json = csvToJson(csv)
+	console.log(json)
 
 	let outputText = 'flowchart TD\n'
 	let mapName = {}
-	for(index in jsonResult){
-		mapName[jsonResult[index]["ID"]] = index
-		outputText += `${index}[${jsonResult[index]["ID"]} - ${jsonResult[index]["Title"]}]\n`
+	for(index in json){
+		mapName[json[index]["ID"]] = index
+		outputText += `${index}[${json[index]["ID"]} - ${json[index]["Title"]} - ${json[index]["Estimate"]}]\n`
 	}
-	for(index in jsonResult){
-		if(jsonResult[index]["Parent issue"] != ''){
-			outputText += `${mapName[jsonResult[index]["Parent issue"]]}-->${index}`
+	for(index in json){
+		if(json[index]["Parent issue"] != ''){
+			outputText += `${mapName[json[index]["Parent issue"]]}-->${index}\n`
 		}
 	}
 	return outputText
